@@ -2,37 +2,57 @@ import { createContext, useContext, useState, ReactNode } from "react";
 
 interface AdminAuthContextType {
   isAuthenticated: boolean;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
+  token: string | null;
 }
 
 const AdminAuthContext = createContext<AdminAuthContextType | null>(null);
-
-// HARDCODED CREDENTIALS — replace with real auth later
-const ADMIN_EMAIL = "admin@premiumdetail.com";
-const ADMIN_PASSWORD = "Admin@123";
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => sessionStorage.getItem("admin_auth") === "true"
   );
+  const [token, setToken] = useState<string | null>(
+    () => sessionStorage.getItem("admin_token")
+  );
 
-const login = async (email: string, password: string) => {
-  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-    setIsAuthenticated(true);
-    sessionStorage.setItem("admin_auth", "true");
-    return true;
-  }
-  return false;
-};
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const response = await fetch("/api/auth?action=login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.token) {
+        setIsAuthenticated(true);
+        setToken(data.token);
+        sessionStorage.setItem("admin_auth", "true");
+        sessionStorage.setItem("admin_token", data.token);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("Login error:", error);
+      return false;
+    }
+  };
 
   const logout = () => {
     setIsAuthenticated(false);
+    setToken(null);
     sessionStorage.removeItem("admin_auth");
+    sessionStorage.removeItem("admin_token");
   };
 
   return (
-    <AdminAuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AdminAuthContext.Provider value={{ isAuthenticated, login, logout, token }}>
       {children}
     </AdminAuthContext.Provider>
   );
