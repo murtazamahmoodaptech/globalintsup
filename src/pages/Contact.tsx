@@ -28,8 +28,7 @@ export default function ContactPage() {
   const [form, setForm] = useState({ fullName: "", email: "", phone: "", subject: "", message: "" });
 const [isLoading, setIsLoading] = useState(false);
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
- const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.fullName || !form.email || !form.phone || !form.subject || !form.message) {
       toast.error("Please fill in all fields.");
@@ -38,7 +37,7 @@ const [isLoading, setIsLoading] = useState(false);
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/contact`, {
+      const response = await fetch(`/api/contact`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
