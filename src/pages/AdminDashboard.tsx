@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -21,18 +21,25 @@ import { toast } from "sonner";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
 import { MOCK_APPOINTMENTS, Appointment } from "@/data/mockAppointments";
 
-interface PromoCode {
-  id: string;
+interface User {
+  _id: string;
+  email: string;
+  fullName: string;
+  role: 'admin' | 'user';
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Coupon {
+  _id: string;
   code: string;
   discountPercentage: number;
   isActive: boolean;
   expiryDate: string;
+  createdAt: string;
+  updatedAt: string;
 }
-
-const INITIAL_PROMOS: PromoCode[] = [
-  { id: "1", code: "FIRST10", discountPercentage: 10, isActive: true, expiryDate: "2026-12-31" },
-  { id: "2", code: "SUMMER20", discountPercentage: 20, isActive: false, expiryDate: "2026-08-31" },
-];
 
 const STATUS_COLORS: Record<string, string> = {
   Pending: "bg-primary/20 text-primary border-primary/30",
@@ -42,8 +49,10 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function AdminDashboard() {
-  const { logout } = useAdminAuth();
+  const { logout, token } = useAdminAuth();
   const navigate = useNavigate();
+  
+  // Appointments state
   const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
   const [statusFilter, setStatusFilter] = useState("All");
   const [search, setSearch] = useState("");
@@ -51,10 +60,278 @@ export default function AdminDashboard() {
   const [viewApt, setViewApt] = useState<Appointment | null>(null);
   const [editStatus, setEditStatus] = useState("");
 
-  // Promo state
-  const [promos, setPromos] = useState<PromoCode[]>(INITIAL_PROMOS);
-  const [showAddPromo, setShowAddPromo] = useState(false);
-  const [newPromo, setNewPromo] = useState({ code: "", discountPercentage: "", expiryDate: "" });
+  // Users state
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState("all");
+  const [userStatusFilter, setUserStatusFilter] = useState("all");
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [newUser, setNewUser] = useState({ email: "", password: "", fullName: "", role: "user" });
+  const [editUserData, setEditUserData] = useState({ fullName: "", role: "user", isActive: true });
+
+  // Coupons state
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [couponsLoading, setCouponsLoading] = useState(false);
+  const [couponSearch, setCouponSearch] = useState("");
+  const [couponStatusFilter, setCouponStatusFilter] = useState("all");
+  const [showAddCoupon, setShowAddCoupon] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
+  const [newCoupon, setNewCoupon] = useState({ code: "", discountPercentage: "", expiryDate: "" });
+  const [editCouponData, setEditCouponData] = useState({ discountPercentage: "", expiryDate: "" });
+
+  // Load users and coupons on mount
+  useEffect(() => {
+    if (token) {
+      fetchUsers();
+      fetchCoupons();
+    }
+  }, [token]);
+
+  // API calls
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (userSearch) params.append('search', userSearch);
+      if (userRoleFilter !== 'all') params.append('role', userRoleFilter);
+      if (userStatusFilter !== 'all') params.append('status', userStatusFilter);
+
+      const response = await fetch(`/api/users?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setUsers(data.users);
+      } else {
+        toast.error(data.message || 'Failed to load users');
+      }
+    } catch (error) {
+      console.error("[v0] Error fetching users:", error);
+      toast.error('Error loading users');
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const fetchCoupons = async () => {
+    setCouponsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (couponSearch) params.append('search', couponSearch);
+      if (couponStatusFilter !== 'all') params.append('status', couponStatusFilter);
+
+      const response = await fetch(`/api/coupons?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setCoupons(data.coupons);
+      } else {
+        toast.error(data.message || 'Failed to load coupons');
+      }
+    } catch (error) {
+      console.error("[v0] Error fetching coupons:", error);
+      toast.error('Error loading coupons');
+    } finally {
+      setCouponsLoading(false);
+    }
+  };
+
+  const handleCreateUser = async () => {
+    if (!newUser.email || !newUser.password || !newUser.fullName) {
+      toast.error('Fill all required fields');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newUser)
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success('User created successfully');
+        setNewUser({ email: "", password: "", fullName: "", role: "user" });
+        setShowAddUser(false);
+        fetchUsers();
+      } else {
+        toast.error(data.message || 'Failed to create user');
+      }
+    } catch (error) {
+      console.error("[v0] Error creating user:", error);
+      toast.error('Error creating user');
+    }
+  };
+
+  const handleUpdateUser = async (userId: string) => {
+    if (!editUserData.fullName) {
+      toast.error('Full name is required');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/users?id=${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(editUserData)
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success('User updated successfully');
+        setEditingUser(null);
+        fetchUsers();
+      } else {
+        toast.error(data.message || 'Failed to update user');
+      }
+    } catch (error) {
+      console.error("[v0] Error updating user:", error);
+      toast.error('Error updating user');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+
+    try {
+      const response = await fetch(`/api/users?id=${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success('User deleted successfully');
+        fetchUsers();
+      } else {
+        toast.error(data.message || 'Failed to delete user');
+      }
+    } catch (error) {
+      console.error("[v0] Error deleting user:", error);
+      toast.error('Error deleting user');
+    }
+  };
+
+  const handleCreateCoupon = async () => {
+    if (!newCoupon.code || !newCoupon.discountPercentage || !newCoupon.expiryDate) {
+      toast.error('Fill all required fields');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/coupons', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          code: newCoupon.code,
+          discountPercentage: Number(newCoupon.discountPercentage),
+          expiryDate: newCoupon.expiryDate
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Coupon created successfully');
+        setNewCoupon({ code: "", discountPercentage: "", expiryDate: "" });
+        setShowAddCoupon(false);
+        fetchCoupons();
+      } else {
+        toast.error(data.message || 'Failed to create coupon');
+      }
+    } catch (error) {
+      console.error("[v0] Error creating coupon:", error);
+      toast.error('Error creating coupon');
+    }
+  };
+
+  const handleUpdateCoupon = async (couponId: string) => {
+    if (!editCouponData.discountPercentage || !editCouponData.expiryDate) {
+      toast.error('Fill all required fields');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/coupons?id=${couponId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          discountPercentage: Number(editCouponData.discountPercentage),
+          expiryDate: editCouponData.expiryDate
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Coupon updated successfully');
+        setEditingCoupon(null);
+        fetchCoupons();
+      } else {
+        toast.error(data.message || 'Failed to update coupon');
+      }
+    } catch (error) {
+      console.error("[v0] Error updating coupon:", error);
+      toast.error('Error updating coupon');
+    }
+  };
+
+  const handleToggleCouponStatus = async (couponId: string, currentStatus: boolean) => {
+    try {
+      const response = await fetch(`/api/coupons?id=${couponId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ isActive: !currentStatus })
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Coupon status updated');
+        fetchCoupons();
+      } else {
+        toast.error(data.message || 'Failed to update coupon');
+      }
+    } catch (error) {
+      console.error("[v0] Error toggling coupon:", error);
+      toast.error('Error updating coupon');
+    }
+  };
+
+  const handleDeleteCoupon = async (couponId: string) => {
+    if (!window.confirm('Are you sure you want to delete this coupon?')) return;
+
+    try {
+      const response = await fetch(`/api/coupons?id=${couponId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Coupon deleted successfully');
+        fetchCoupons();
+      } else {
+        toast.error(data.message || 'Failed to delete coupon');
+      }
+    } catch (error) {
+      console.error("[v0] Error deleting coupon:", error);
+      toast.error('Error deleting coupon');
+    }
+  };
 
   const handleLogout = () => { logout(); navigate("/admin/login"); };
 
@@ -146,8 +423,11 @@ export default function AdminDashboard() {
         <Tabs defaultValue="appointments">
           <TabsList className="bg-secondary border border-border mb-6">
             <TabsTrigger value="appointments" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Appointments</TabsTrigger>
-            <TabsTrigger value="promos" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Tag className="w-4 h-4 mr-1" /> Promo Codes
+            <TabsTrigger value="users" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Users className="w-4 h-4 mr-1" /> Users
+            </TabsTrigger>
+            <TabsTrigger value="coupons" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Tag className="w-4 h-4 mr-1" /> Coupons
             </TabsTrigger>
           </TabsList>
 
@@ -211,39 +491,120 @@ export default function AdminDashboard() {
             </div>
           </TabsContent>
 
-          {/* Promo Codes Tab */}
-          <TabsContent value="promos">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-display text-xl font-bold text-foreground">Promo Codes</h3>
-              <Button onClick={() => setShowAddPromo(true)} className="bg-gradient-sky text-primary-foreground font-semibold hover:opacity-90">
-                <Plus className="w-4 h-4 mr-2" /> Add Promo Code
+          {/* Users Tab */}
+          <TabsContent value="users">
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input value={userSearch} onChange={(e) => setUserSearch(e.target.value)} placeholder="Search by email or name..." className="bg-secondary border-border text-foreground pl-10" />
+              </div>
+              <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                <SelectTrigger className="w-full md:w-48 bg-secondary border-border text-foreground">
+                  <Filter className="w-4 h-4 mr-2" /><SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {["all", "admin", "user"].map((r) => <SelectItem key={r} value={r}>{r === "all" ? "All Roles" : r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={userStatusFilter} onValueChange={setUserStatusFilter}>
+                <SelectTrigger className="w-full md:w-48 bg-secondary border-border text-foreground">
+                  <Filter className="w-4 h-4 mr-2" /><SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {["all", "active", "inactive"].map((s) => <SelectItem key={s} value={s}>{s === "all" ? "All Status" : s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button onClick={() => setShowAddUser(true)} className="bg-gradient-sky text-primary-foreground font-semibold hover:opacity-90">
+                <Plus className="w-4 h-4 mr-2" /> Add User
+              </Button>
+            </div>
+
+            <div className="bg-gradient-card border border-border rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {["Email", "Full Name", "Role", "Status", "Created", "Actions"].map((h) => (
+                        <th key={h} className="text-left px-4 py-3 text-xs text-muted-foreground uppercase tracking-wider font-medium">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usersLoading ? (
+                      <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">Loading users...</td></tr>
+                    ) : users.length === 0 ? (
+                      <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">No users found.</td></tr>
+                    ) : users.map((user) => (
+                      <tr key={user._id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                        <td className="px-4 py-3 text-primary text-xs">{user.email}</td>
+                        <td className="px-4 py-3 text-foreground font-medium">{user.fullName}</td>
+                        <td className="px-4 py-3"><Badge variant="outline" className={user.role === 'admin' ? 'bg-primary/20 text-primary border-primary/30' : 'bg-muted text-muted-foreground'}>{user.role}</Badge></td>
+                        <td className="px-4 py-3"><Badge variant="outline" className={user.isActive ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-destructive/20 text-red-400 border-destructive/30'}>{user.isActive ? 'Active' : 'Inactive'}</Badge></td>
+                        <td className="px-4 py-3 text-muted-foreground text-xs">{new Date(user.createdAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => { setEditingUser(user); setEditUserData({ fullName: user.fullName, role: user.role, isActive: user.isActive }); }} className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-primary transition-colors"><Pencil className="w-4 h-4" /></button>
+                            <button onClick={() => handleDeleteUser(user._id)} className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Coupons Tab */}
+          <TabsContent value="coupons">
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input value={couponSearch} onChange={(e) => setCouponSearch(e.target.value)} placeholder="Search by code..." className="bg-secondary border-border text-foreground pl-10" />
+              </div>
+              <Select value={couponStatusFilter} onValueChange={setCouponStatusFilter}>
+                <SelectTrigger className="w-full md:w-48 bg-secondary border-border text-foreground">
+                  <Filter className="w-4 h-4 mr-2" /><SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {["all", "active", "inactive"].map((s) => <SelectItem key={s} value={s}>{s === "all" ? "All Status" : s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button onClick={() => setShowAddCoupon(true)} className="bg-gradient-sky text-primary-foreground font-semibold hover:opacity-90">
+                <Plus className="w-4 h-4 mr-2" /> Add Coupon
               </Button>
             </div>
 
             <div className="grid gap-4">
-              {promos.map((promo) => (
-                <motion.div key={promo.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gradient-card border border-border rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              {couponsLoading ? (
+                <div className="text-center py-12 text-muted-foreground">Loading coupons...</div>
+              ) : coupons.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">No coupons found.</div>
+              ) : coupons.map((coupon) => (
+                <motion.div key={coupon._id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gradient-card border border-border rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center">
                       <Tag className="w-5 h-5 text-primary" />
                     </div>
                     <div>
-                      <div className="text-foreground font-bold text-lg font-mono">{promo.code}</div>
-                      <div className="text-sm text-muted-foreground">{promo.discountPercentage}% off · Expires {promo.expiryDate}</div>
+                      <div className="text-foreground font-bold text-lg font-mono">{coupon.code}</div>
+                      <div className="text-sm text-muted-foreground">{coupon.discountPercentage}% off · Expires {new Date(coupon.expiryDate).toLocaleDateString()}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{promo.isActive ? "Active" : "Inactive"}</span>
-                      <Switch checked={promo.isActive} onCheckedChange={() => togglePromo(promo.id)} />
+                      <span className="text-xs text-muted-foreground">{coupon.isActive ? "Active" : "Inactive"}</span>
+                      <Switch checked={coupon.isActive} onCheckedChange={() => handleToggleCouponStatus(coupon._id, coupon.isActive)} />
                     </div>
-                    <button onClick={() => deletePromo(promo.id)} className="p-2 rounded hover:bg-secondary text-muted-foreground hover:text-red-400 transition-colors">
+                    <button onClick={() => { setEditingCoupon(coupon); setEditCouponData({ discountPercentage: coupon.discountPercentage.toString(), expiryDate: coupon.expiryDate.split('T')[0] }); }} className="p-2 rounded hover:bg-secondary text-muted-foreground hover:text-primary transition-colors">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDeleteCoupon(coupon._id)} className="p-2 rounded hover:bg-secondary text-muted-foreground hover:text-red-400 transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </motion.div>
               ))}
-              {promos.length === 0 && <p className="text-center text-muted-foreground py-8">No promo codes yet.</p>}
             </div>
           </TabsContent>
         </Tabs>
@@ -285,18 +646,85 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Promo Dialog */}
-      <Dialog open={showAddPromo} onOpenChange={setShowAddPromo}>
+      {/* Add User Dialog */}
+      <Dialog open={showAddUser} onOpenChange={setShowAddUser}>
         <DialogContent className="bg-card border-border text-foreground max-w-md">
-          <DialogHeader><DialogTitle className="font-display text-xl">Add Promo Code</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-display text-xl">Add User</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label className="text-foreground">Code</Label><Input value={newPromo.code} onChange={(e) => setNewPromo({ ...newPromo, code: e.target.value })} placeholder="e.g. SUMMER20" className="bg-secondary border-border text-foreground mt-1 uppercase" /></div>
-            <div><Label className="text-foreground">Discount %</Label><Input type="number" value={newPromo.discountPercentage} onChange={(e) => setNewPromo({ ...newPromo, discountPercentage: e.target.value })} placeholder="e.g. 10" className="bg-secondary border-border text-foreground mt-1" /></div>
-            <div><Label className="text-foreground">Expiry Date</Label><Input type="date" value={newPromo.expiryDate} onChange={(e) => setNewPromo({ ...newPromo, expiryDate: e.target.value })} className="bg-secondary border-border text-foreground mt-1" /></div>
+            <div><Label className="text-foreground">Email</Label><Input value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="user@example.com" type="email" className="bg-secondary border-border text-foreground mt-1" /></div>
+            <div><Label className="text-foreground">Full Name</Label><Input value={newUser.fullName} onChange={(e) => setNewUser({ ...newUser, fullName: e.target.value })} placeholder="John Doe" className="bg-secondary border-border text-foreground mt-1" /></div>
+            <div><Label className="text-foreground">Password</Label><Input value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} type="password" placeholder="Min 6 characters" className="bg-secondary border-border text-foreground mt-1" /></div>
+            <div><Label className="text-foreground">Role</Label>
+              <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value as 'admin' | 'user' })}>
+                <SelectTrigger className="bg-secondary border-border text-foreground mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-card border-border">{["user", "admin"].map((r) => <SelectItem key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddPromo(false)} className="border-border text-muted-foreground">Cancel</Button>
-            <Button onClick={handleAddPromo} className="bg-gradient-sky text-primary-foreground font-semibold hover:opacity-90">Add Code</Button>
+            <Button variant="outline" onClick={() => setShowAddUser(false)} className="border-border text-muted-foreground">Cancel</Button>
+            <Button onClick={handleCreateUser} className="bg-gradient-sky text-primary-foreground font-semibold hover:opacity-90">Create User</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
+        <DialogContent className="bg-card border-border text-foreground max-w-md">
+          <DialogHeader><DialogTitle className="font-display text-xl">Edit User</DialogTitle></DialogHeader>
+          {editingUser && (
+            <div className="space-y-4">
+              <div><Label className="text-foreground">Email</Label><Input value={editingUser.email} disabled className="bg-secondary border-border text-muted-foreground mt-1" /></div>
+              <div><Label className="text-foreground">Full Name</Label><Input value={editUserData.fullName} onChange={(e) => setEditUserData({ ...editUserData, fullName: e.target.value })} className="bg-secondary border-border text-foreground mt-1" /></div>
+              <div><Label className="text-foreground">Role</Label>
+                <Select value={editUserData.role} onValueChange={(value) => setEditUserData({ ...editUserData, role: value as 'admin' | 'user' })}>
+                  <SelectTrigger className="bg-secondary border-border text-foreground mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border-border">{["user", "admin"].map((r) => <SelectItem key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={editUserData.isActive} onCheckedChange={(checked) => setEditUserData({ ...editUserData, isActive: checked })} />
+                <Label className="text-foreground">Active</Label>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingUser(null)} className="border-border text-muted-foreground">Cancel</Button>
+            <Button onClick={() => editingUser && handleUpdateUser(editingUser._id)} className="bg-gradient-sky text-primary-foreground font-semibold hover:opacity-90">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Coupon Dialog */}
+      <Dialog open={showAddCoupon} onOpenChange={setShowAddCoupon}>
+        <DialogContent className="bg-card border-border text-foreground max-w-md">
+          <DialogHeader><DialogTitle className="font-display text-xl">Add Coupon</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div><Label className="text-foreground">Code</Label><Input value={newCoupon.code} onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value })} placeholder="e.g. SUMMER20" className="bg-secondary border-border text-foreground mt-1 uppercase" /></div>
+            <div><Label className="text-foreground">Discount %</Label><Input type="number" value={newCoupon.discountPercentage} onChange={(e) => setNewCoupon({ ...newCoupon, discountPercentage: e.target.value })} placeholder="e.g. 20" min="1" max="100" className="bg-secondary border-border text-foreground mt-1" /></div>
+            <div><Label className="text-foreground">Expiry Date</Label><Input type="date" value={newCoupon.expiryDate} onChange={(e) => setNewCoupon({ ...newCoupon, expiryDate: e.target.value })} className="bg-secondary border-border text-foreground mt-1" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddCoupon(false)} className="border-border text-muted-foreground">Cancel</Button>
+            <Button onClick={handleCreateCoupon} className="bg-gradient-sky text-primary-foreground font-semibold hover:opacity-90">Add Coupon</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Coupon Dialog */}
+      <Dialog open={!!editingCoupon} onOpenChange={() => setEditingCoupon(null)}>
+        <DialogContent className="bg-card border-border text-foreground max-w-md">
+          <DialogHeader><DialogTitle className="font-display text-xl">Edit Coupon</DialogTitle></DialogHeader>
+          {editingCoupon && (
+            <div className="space-y-4">
+              <div><Label className="text-foreground">Code</Label><Input value={editingCoupon.code} disabled className="bg-secondary border-border text-muted-foreground mt-1" /></div>
+              <div><Label className="text-foreground">Discount %</Label><Input type="number" value={editCouponData.discountPercentage} onChange={(e) => setEditCouponData({ ...editCouponData, discountPercentage: e.target.value })} min="1" max="100" className="bg-secondary border-border text-foreground mt-1" /></div>
+              <div><Label className="text-foreground">Expiry Date</Label><Input type="date" value={editCouponData.expiryDate} onChange={(e) => setEditCouponData({ ...editCouponData, expiryDate: e.target.value })} className="bg-secondary border-border text-foreground mt-1" /></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingCoupon(null)} className="border-border text-muted-foreground">Cancel</Button>
+            <Button onClick={() => editingCoupon && handleUpdateCoupon(editingCoupon._id)} className="bg-gradient-sky text-primary-foreground font-semibold hover:opacity-90">Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
