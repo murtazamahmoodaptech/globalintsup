@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarIcon, Car, Trash2, ShoppingCart } from "lucide-react";
+import { CalendarIcon, Car, Trash2, ShoppingCart, CheckCircle, AlertCircle, X } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,9 @@ import heroBook from "@/assets/hero-book.jpg";
 export default function BookPage() {
   const { items, removeItem, clearCart, total: cartTotal } = useCart();
   const [isLoading, setIsLoading] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
+  const [dialogType, setDialogType] = useState<'success' | 'error'>('success');
+  const [dialogMessage, setDialogMessage] = useState("");
 
   const [form, setForm] = useState({
      fullName: "",
@@ -85,11 +88,15 @@ export default function BookPage() {
       const data = await response.json();
 
       if (!data.success) {
-        toast.error(data.message || "Failed to create appointment");
+        setDialogType('error');
+        setDialogMessage(data.message || "Failed to create appointment");
+        setShowDialog(true);
         return;
       }
 
-      toast.success("Appointment request submitted! We'll confirm your booking shortly.");
+      setDialogType('success');
+      setDialogMessage("Appointment request submitted! We'll confirm your booking shortly.");
+      setShowDialog(true);
       clearCart();
       setForm({
         fullName: "",
@@ -107,7 +114,9 @@ export default function BookPage() {
       setDate(undefined);
     } catch (error) {
       console.error("Booking error:", error);
-      toast.error("Network error. Please try again.");
+      setDialogType('error');
+      setDialogMessage("Network error. Please try again.");
+      setShowDialog(true);
     } finally {
       setIsLoading(false);
     }
@@ -212,12 +221,41 @@ export default function BookPage() {
               </motion.div>
             )}
 
-            <Button type="submit" size="lg" className="w-full bg-gradient-sky text-primary-foreground font-semibold text-lg btn-glow hover:scale-[1.02] duration-200">
-              Submit Booking Request
+            <Button type="submit" disabled={isLoading} size="lg" className="w-full bg-gradient-sky text-primary-foreground font-semibold text-lg btn-glow hover:scale-[1.02] duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+              {isLoading ? "Submitting..." : "Submit Booking Request"}
             </Button>
           </motion.form>
         </div>
       </section>
+
+      {/* Success/Error Dialog */}
+      {showDialog && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50">
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-card border border-border rounded-xl p-8 max-w-sm w-full shadow-xl">
+            <div className="flex items-start gap-4">
+              <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${dialogType === 'success' ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
+                {dialogType === 'success' ? (
+                  <CheckCircle className="w-6 h-6 text-emerald-400" />
+                ) : (
+                  <AlertCircle className="w-6 h-6 text-red-400" />
+                )}
+              </div>
+              <div className="flex-1">
+                <h3 className="font-display text-lg font-bold text-foreground mb-2">
+                  {dialogType === 'success' ? 'Success' : 'Error'}
+                </h3>
+                <p className="text-muted-foreground text-sm mb-6">{dialogMessage}</p>
+                <Button onClick={() => setShowDialog(false)} className={`w-full ${dialogType === 'success' ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'}`}>
+                  Close
+                </Button>
+              </div>
+              <button onClick={() => setShowDialog(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Phone, Mail, MapPin, Clock, Send, MessageSquare } from "lucide-react";
+import { Phone, Mail, MapPin, Clock, Send, MessageSquare, CheckCircle, AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,7 +26,10 @@ const faqs = [
 
 export default function ContactPage() {
   const [form, setForm] = useState({ fullName: "", email: "", phone: "", subject: "", message: "" });
-const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
+  const [dialogType, setDialogType] = useState<'success' | 'error'>('success');
+  const [dialogMessage, setDialogMessage] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,15 +55,21 @@ const [isLoading, setIsLoading] = useState(false);
       const data = await response.json();
 
       if (!data.success) {
-        toast.error(data.message || "Failed to send message");
+        setDialogType('error');
+        setDialogMessage(data.message || "Failed to send message");
+        setShowDialog(true);
         return;
       }
 
-      toast.success("Message sent! We'll get back to you shortly.");
+      setDialogType('success');
+      setDialogMessage("Message sent successfully! We'll get back to you shortly.");
+      setShowDialog(true);
       setForm({ fullName: "", email: "", phone: "", subject: "", message: "" });
     } catch (error) {
       console.error("Contact error:", error);
-      toast.error("Network error. Please try again.");
+      setDialogType('error');
+      setDialogMessage("Network error. Please try again.");
+      setShowDialog(true);
     } finally {
       setIsLoading(false);
     }
@@ -103,8 +112,8 @@ const [isLoading, setIsLoading] = useState(false);
               <div><Label className="text-foreground">Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="your@email.com" className="bg-secondary border-border text-foreground mt-1" /></div>
               <div><Label className="text-foreground">Subject</Label><Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="What's this about?" className="bg-secondary border-border text-foreground mt-1" /></div>
               <div><Label className="text-foreground">Message *</Label><Textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} placeholder="How can we help?" rows={5} className="bg-secondary border-border text-foreground mt-1" /></div>
-              <Button type="submit" className="w-full bg-gradient-sky text-primary-foreground font-semibold btn-glow hover:scale-[1.02] duration-200">
-                Send Message <Send className="ml-2 w-4 h-4" />
+              <Button type="submit" disabled={isLoading} className="w-full bg-gradient-sky text-primary-foreground font-semibold btn-glow hover:scale-[1.02] duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                {isLoading ? "Submitting..." : "Send Message"} <Send className="ml-2 w-4 h-4" />
               </Button>
             </motion.form>
           </div>
@@ -129,6 +138,35 @@ const [isLoading, setIsLoading] = useState(false);
           </div>
         </div>
       </section>
+
+      {/* Success/Error Dialog */}
+      {showDialog && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/50">
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-card border border-border rounded-xl p-8 max-w-sm w-full shadow-xl">
+            <div className="flex items-start gap-4">
+              <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${dialogType === 'success' ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
+                {dialogType === 'success' ? (
+                  <CheckCircle className="w-6 h-6 text-emerald-400" />
+                ) : (
+                  <AlertCircle className="w-6 h-6 text-red-400" />
+                )}
+              </div>
+              <div className="flex-1">
+                <h3 className="font-display text-lg font-bold text-foreground mb-2">
+                  {dialogType === 'success' ? 'Success' : 'Error'}
+                </h3>
+                <p className="text-muted-foreground text-sm mb-6">{dialogMessage}</p>
+                <Button onClick={() => setShowDialog(false)} className={`w-full ${dialogType === 'success' ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'}`}>
+                  Close
+                </Button>
+              </div>
+              <button onClick={() => setShowDialog(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </>
   );
 }
