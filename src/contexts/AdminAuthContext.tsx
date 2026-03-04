@@ -17,14 +17,14 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     () => sessionStorage.getItem("admin_auth") === "true"
   );
 
-  const login = (email: string, password: string) => {
-    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      sessionStorage.setItem("admin_auth", "true");
-      return true;
-    }
-    return false;
-  };
+const login = async (email: string, password: string) => {
+  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+    setIsAuthenticated(true);
+    sessionStorage.setItem("admin_auth", "true");
+    return true;
+  }
+  return false;
+};
 
   const logout = () => {
     setIsAuthenticated(false);

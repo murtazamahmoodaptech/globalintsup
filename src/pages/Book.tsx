@@ -17,26 +17,100 @@ import heroBook from "@/assets/hero-book.jpg";
 
 export default function BookPage() {
   const { items, removeItem, clearCart, total: cartTotal } = useCart();
+  const [isLoading, setIsLoading] = useState(false);
 
   const [form, setForm] = useState({
-    fullName: "", phone: "", email: "", address: "", vehicleName: "", make: "", model: "", year: "", promoCode: "", timeSlot: "",
-  });
-  const [date, setDate] = useState<Date>();
+     fullName: "",
+     phone: "",
+     email: "",
+     address: "",
+     vehicleName: "",
+     make: "",
+     model: "",
+     year: "",
+     promoCode: "",
+     timeSlot: "",
+     vehicleCategory: "",
+   });
+   const [date, setDate] = useState<Date>();
+
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
   const savedPromo = localStorage.getItem("promo_code");
   const promoCode = form.promoCode.trim().toUpperCase() || savedPromo || "";
   const hasDiscount = promoCode === "FIRST10";
+
   const discount = hasDiscount ? cartTotal * 0.1 : 0;
   const finalTotal = cartTotal - discount;
 
   const update = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.fullName || !form.phone || !form.email || !date || !form.timeSlot) { toast.error("Please fill in all required fields."); return; }
-    if (items.length === 0) { toast.error("Your cart is empty. Add services from the Services page."); return; }
-    toast.success("Appointment request submitted! We'll confirm your booking shortly.");
-    clearCart();
+    if (!form.fullName || !form.phone || !form.email || !date || !form.timeSlot) {
+      toast.error("Please fill in all required fields.");
+      return;
+    }
+    if (items.length === 0) {
+      toast.error("Your cart is empty. Add services from the Services page.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const serviceType = items.map(item => item.serviceType).join(", ");
+      const response = await fetch(`${API_BASE_URL}/appointments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: form.fullName,
+          phone: form.phone,
+          email: form.email,
+          address: form.address,
+          vehicleName: form.vehicleName,
+          make: form.make,
+          model: form.model,
+          year: form.year,
+          serviceType: serviceType,
+          vehicleCategory: items[0]?.vehicleCategory || "Car",
+          date: date?.toISOString().split('T')[0],
+          timeSlot: form.timeSlot,
+          promoCode: promoCode,
+          discountApplied: hasDiscount,
+          totalPrice: finalTotal,
+          status: "Pending",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        toast.error(data.message || "Failed to create appointment");
+        return;
+      }
+
+      toast.success("Appointment request submitted! We'll confirm your booking shortly.");
+      clearCart();
+      setForm({
+        fullName: "",
+        phone: "",
+        email: "",
+        address: "",
+        vehicleName: "",
+        make: "",
+        model: "",
+        year: "",
+        promoCode: "",
+        timeSlot: "",
+        vehicleCategory: "",
+      });
+      setDate(undefined);
+    } catch (error) {
+      console.error("Booking error:", error);
+      toast.error("Network error. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

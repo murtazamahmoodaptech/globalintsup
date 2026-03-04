@@ -25,13 +25,46 @@ const faqs = [
 ];
 
 export default function ContactPage() {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", subject: "", message: "" });
+  const [form, setForm] = useState({ fullName: "", email: "", phone: "", subject: "", message: "" });
+const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+ const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.email || !form.message) { toast.error("Please fill in all required fields."); return; }
-    toast.success("Message sent! We'll get back to you shortly.");
-    setForm({ name: "", email: "", phone: "", subject: "", message: "" });
+    if (!form.fullName || !form.email || !form.phone || !form.subject || !form.message) {
+      toast.error("Please fill in all fields.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: form.fullName,
+          email: form.email,
+          phone: form.phone,
+          subject: form.subject,
+          message: form.message,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        toast.error(data.message || "Failed to send message");
+        return;
+      }
+
+      toast.success("Message sent! We'll get back to you shortly.");
+      setForm({ fullName: "", email: "", phone: "", subject: "", message: "" });
+    } catch (error) {
+      console.error("Contact error:", error);
+      toast.error("Network error. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -65,7 +98,7 @@ export default function ContactPage() {
 
             <motion.form initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} onSubmit={handleSubmit} className="bg-gradient-card border border-border rounded-xl p-5 sm:p-6 lg:p-8 space-y-4 card-hover">
               <div className="grid sm:grid-cols-2 gap-4">
-                <div><Label className="text-foreground">Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Your name" className="bg-secondary border-border text-foreground mt-1" /></div>
+                <div><Label className="text-foreground">Name *</Label><Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Your name" className="bg-secondary border-border text-foreground mt-1" /></div>
                 <div><Label className="text-foreground">Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Your phone" className="bg-secondary border-border text-foreground mt-1" /></div>
               </div>
               <div><Label className="text-foreground">Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="your@email.com" className="bg-secondary border-border text-foreground mt-1" /></div>

@@ -13,14 +13,35 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const { login } = useAdminAuth();
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(email, password)) {
-      toast.success("Welcome back, Admin!");
-      navigate("/admin/dashboard");
-    } else {
-      toast.error("Invalid credentials. Please try again.");
+
+    if (!email || !password) {
+      toast.error("Please enter email and password");
+      return;
+    }
+
+    setIsLoading(true);
+    console.log("Submitting login...");
+
+    try {
+      const success = await login(email, password);
+
+      console.log("Login response:", success);
+
+      if (success === true) {
+        toast.success("Welcome back, Admin!");
+        navigate("/admin/dashboard");
+      } else {
+        toast.error("Invalid credentials");
+      }
+    } catch (error) {
+      console.error("Login failed:", error);
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -35,21 +56,43 @@ export default function AdminLoginPage() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-gold mb-4">
             <Lock className="w-6 h-6 text-primary" />
           </div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Admin Login</h1>
-          <p className="text-muted-foreground text-sm mt-1">Sign in to manage your dashboard</p>
+          <h1 className="font-display text-2xl font-bold text-foreground">
+            Admin Login
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Sign in to manage your dashboard
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label className="text-foreground">Email</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@premiumdetail.com" className="bg-secondary border-border text-foreground mt-1" />
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@premiumdetail.com"
+              className="bg-secondary border-border text-foreground mt-1"
+            />
           </div>
+
           <div>
             <Label className="text-foreground">Password</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="bg-secondary border-border text-foreground mt-1" />
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="bg-secondary border-border text-foreground mt-1"
+            />
           </div>
-          <Button type="submit" className="w-full bg-gradient-gold text-primary-foreground font-semibold hover:opacity-90 transition-opacity">
-            Sign In
+
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-gradient-gold text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {isLoading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
       </motion.div>
