@@ -7,6 +7,8 @@ import { connectDB } from './config/database.ts';
 import authHandler from '../api/auth.ts';
 import appointmentsHandler from '../api/appointments.ts';
 import contactHandler from '../api/contact.ts';
+import usersHandler from '../api/users.ts';
+import couponsHandler from '../api/coupons.ts';
 
 const app = express();
 
@@ -63,6 +65,40 @@ app.post('/api/contact', async (req, res) => {
 
 app.get('/api/contact', async (req, res) => {
   await contactHandler(req as any, res);
+});
+
+// Users routes
+app.get('/api/users', async (req, res) => {
+  await usersHandler(req as any, res);
+});
+
+app.post('/api/users', async (req, res) => {
+  await usersHandler(req as any, res);
+});
+
+app.put('/api/users', async (req, res) => {
+  await usersHandler(req as any, res);
+});
+
+app.delete('/api/users', async (req, res) => {
+  await usersHandler(req as any, res);
+});
+
+// Coupons routes
+app.get('/api/coupons', async (req, res) => {
+  await couponsHandler(req as any, res);
+});
+
+app.post('/api/coupons', async (req, res) => {
+  await couponsHandler(req as any, res);
+});
+
+app.put('/api/coupons', async (req, res) => {
+  await couponsHandler(req as any, res);
+});
+
+app.delete('/api/coupons', async (req, res) => {
+  await couponsHandler(req as any, res);
 });
 
 // Error handling
